@@ -1,0 +1,6 @@
+[submodule "wrenalyzer-ts"]
+	path = src/wrenalyzer-ts
+	url = https://github.com/sponge/wrenalyzer-ts
+[submodule "src/wrenalyzer-ts"]
+	path = src/wrenalyzer-ts
+	url = https://github.com/sponge/wrenalyzer-ts
