@@ -3,13 +3,15 @@ import * as vscode from 'vscode';
 
 import Lexer from './wrenalyzer-ts/lexer';
 import Parser, { Module } from './wrenalyzer-ts/parser';
+import Token from './wrenalyzer-ts/token';
 import SourceFile from './wrenalyzer-ts/sourcefile';
 import * as path from 'path';
 import * as fs from 'fs';
 
 class WrenManager {
-  trees: Map<string, Module> = new Map();
+  trees: Map<string, Module | null> = new Map();
   paths: Array<string> = [];
+  pending: Set<string> = new Set();
 
   methods: Array<vscode.CompletionItem> = [];
   signatures: [string, vscode.SignatureInformation][] = [];
@@ -18,11 +20,13 @@ class WrenManager {
 
   }
 
-  addPathToSearch(p: string) {
+  addPathToSearch(p: string): void {
     this.paths.push(p);
   }
 
-  updateCompletionItems() {
+  updateCompletionItems(): void {
+    console.info("regenerating completion items");
+
     this.methods = [];
     this.signatures = [];
 
@@ -31,16 +35,17 @@ class WrenManager {
     for (let module of this.trees.values()) {
       module.statements
         .filter(o => o.type === 'ClassStmt')
-        .map((o: any) => o.methods)
-        .reduce((accum: any, val: any) => accum.concat(val), [])
-        .filter((o: any) => o.type === 'Method')
-        .forEach((m: any) => {
-          methodSet.add(m.name.text);
+        .forEach((c: any) => {
+          // TODO: we've got all the methods, but probably want fields and eventually everything else
+          const methods = c.methods.filter((o: any) => o.type === 'Method');
+          for (let m of methods) {
+            methodSet.add(m.name.text);
 
-          const params = m.parameters ? m.parameters.map((t: any) => t.text) : [];
-          const sig = new vscode.SignatureInformation(`${m.name.text}(${params.join(', ')})`);
-          sig.parameters = params.map((p: any) => new vscode.ParameterInformation(p));
-          this.signatures.push([m.name.text, sig]);
+            const params = m.parameters ? m.parameters.map((t: any) => t.text) : [];
+            const sig = new vscode.SignatureInformation(`${c.name.text}.${m.name.text}(${params.join(', ')})`, m.name.source.path);
+            sig.parameters = params.map((p: any) => new vscode.ParameterInformation(p));
+            this.signatures.push([m.name.text, sig]);
+          }
         });
     }
 
@@ -49,7 +54,9 @@ class WrenManager {
     }
   }
 
-  updateFileImports(start: Module) {
+  updateFileImports(start: Module): void {
+    let noFilesToUpdate = true;
+
     const files = start.statements
       .filter(stmt => stmt.type === 'ImportStmt')
       .map((stmt: any) => {
@@ -71,7 +78,10 @@ class WrenManager {
         continue;
       }
 
-      let fpath: string | undefined = undefined;
+      // set it here so other async operations won't duplicate work
+      //this.trees.set(file, null);
+
+      let fpath: string = '';
       const testPaths = [fileTuple[1], ...this.paths];
       for (let testPath of testPaths) {
         if (fs.existsSync(path.join(testPath, file))) {
@@ -80,10 +90,17 @@ class WrenManager {
         }
       }
 
-      if (fpath === undefined) {
+      if (fpath === '') {
         console.warn("couldn't find file in any path " + file);
         continue;
       }
+
+      if (this.pending.has(fpath)) {
+        continue;
+      }
+
+      this.pending.add(fpath);
+      noFilesToUpdate = false;
 
       fs.readFile(fpath, (err, data) => {
         if (err) {
@@ -91,22 +108,32 @@ class WrenManager {
           return;
         }
         this.parseFile(new SourceFile(file, data.toString()));
+        this.pending.delete(fpath);
+
+        if (this.pending.size === 0) {
+          console.log("done reading and parsing files, updating completion items");
+          this.updateCompletionItems();
+        }
       });
+    }
+
+    if (noFilesToUpdate && this.pending.size === 0) {
+      console.log("no new imports, updating completion items");
+      this.updateCompletionItems();
     }
   }
 
-  updateFileIfNotExists(document: vscode.TextDocument) {
+  updateFileIfNotExists(document: vscode.TextDocument): void {
     if (this.trees.has(document.fileName)) {
       return;
     }
 
-    const module = this.updateDocument(document);
-    this.updateFileImports(module);
-
-    this.updateCompletionItems();
+    this.parseDocument(document);
   }
 
   parseFile(source: SourceFile): Module {
+    console.log(`Parsing AST for ${source.path}`);
+
     const lexer = new Lexer(source);
     const parser = new Parser(lexer);
     const ast = parser.parseModule();
@@ -115,17 +142,28 @@ class WrenManager {
 
     this.updateFileImports(ast);
 
-    // fixme: this won't work fully since async stuff happens in updateFileImports
-    this.updateCompletionItems();
-
     return ast;
   }
 
-  updateDocument(document: vscode.TextDocument): Module {
+  parseDocument(document: vscode.TextDocument): Module {
     const source = new SourceFile(document.fileName, document.getText());
     const ast = this.parseFile(source);
 
     return ast;
+  }
+
+  lexString(source: string): Token[] {
+    const sf = new SourceFile('string', source);
+    const lexer = new Lexer(sf);
+
+    let token = lexer.readToken();
+    const tokens: Token[] = [];
+    while (token.type !== Token.eof) {
+      tokens.push(token);
+      token = lexer.readToken();
+    }
+    
+    return tokens;
   }
 }
 
