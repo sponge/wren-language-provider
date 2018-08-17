@@ -12,6 +12,7 @@ class WrenManager {
   paths: Array<string> = [];
 
   methods: Array<vscode.CompletionItem> = [];
+  signatures: [string, vscode.SignatureInformation][] = [];
 
   constructor() {
 
@@ -22,7 +23,10 @@ class WrenManager {
   }
 
   updateCompletionItems() {
-    const methodSet:Set<string> = new Set();
+    this.methods = [];
+    this.signatures = [];
+
+    const methodSet: Set<string> = new Set();
 
     for (let module of this.trees.values()) {
       module.statements
@@ -32,12 +36,16 @@ class WrenManager {
         .filter((o: any) => o.type === 'Method')
         .forEach((m: any) => {
           methodSet.add(m.name.text);
+
+          const params = m.parameters ? m.parameters.map((t: any) => t.text) : [];
+          const sig = new vscode.SignatureInformation(`${m.name.text}(${params.join(', ')})`);
+          sig.parameters = params.map((p: any) => new vscode.ParameterInformation(p));
+          this.signatures.push([m.name.text, sig]);
         });
     }
 
-    this.methods = [];
     for (let name of methodSet.values()) {
-      this.methods.push(new vscode.CompletionItem(name));
+      this.methods.push(new vscode.CompletionItem(name, vscode.CompletionItemKind.Method));
     }
   }
 
@@ -54,7 +62,7 @@ class WrenManager {
         }
 
         return [relPath, path.dirname(stmt.path.source.path)];
-    });
+      });
 
     for (let fileTuple of files) {
       const file = fileTuple[0];
@@ -82,7 +90,7 @@ class WrenManager {
           console.warn("error reading file " + file);
           return;
         }
-        this.parseFile(new SourceFile(file, data.toString()));       
+        this.parseFile(new SourceFile(file, data.toString()));
       });
     }
   }
