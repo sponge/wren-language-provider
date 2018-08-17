@@ -33,10 +33,17 @@
     },
     "main": "./out/extension",
     "contributes": {
-        "commands": [
+        "configuration":[
             {
-                "command": "extension.sayHello",
-                "title": "Hello World"
+                "type": "object",
+                "title": "Wren Configuration",
+                "properties": {
+                    "wren.additionalModuleDirectories": {
+                        "type": "array",
+                        "default": "",
+                        "description": "Additional directory to scan for .wren files"
+                    }
+                }
             }
         ]
     },
