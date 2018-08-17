@@ -3,7 +3,6 @@ import * as vscode from 'vscode';
 import WrenManager from './wrenmanager';
 import * as path from 'path';
 import * as fs from 'fs';
-import Token from './wrenalyzer-ts/token';
 
 const WREN_MODE: vscode.DocumentFilter = { language: 'wren', scheme: 'file' };
 
@@ -12,38 +11,16 @@ const manager = new WrenManager();
 class WrenSignatureHelpProvider implements vscode.SignatureHelpProvider {
     public provideSignatureHelp(document: vscode.TextDocument, position: vscode.Position, token: vscode.CancellationToken): Promise<vscode.SignatureHelp> {
         const currentLine = document.lineAt(position.line).text;
+
         return new Promise((resolve, reject) => {
             manager.updateFileIfNotExists(document);
 
-            const tokens = manager.lexString(currentLine).reverse();
-            let foundLeftParens = false;
-            let currParam = 0;
-            let foundDot = true;
-            const identifiers: string[] = [];
-            for (let token of tokens) {
-                if (token.columnStart > position.character) {
-                    continue;
-                }
-    
-                if (token.type === Token.leftParen) {
-                    foundLeftParens = true;
-                } else if (!foundLeftParens && token.type === Token.comma) {
-                    currParam += 1;
-                } else if (foundLeftParens && token.type === Token.dot) {
-                    foundDot = true;
-                } else if (foundLeftParens && foundDot && token.type === Token.tname) {
-                    identifiers.push(token.text);
-                    foundDot = false;
-                }
-    
-                //console.log(token);
-            }
-            //console.log(`foundLeftParens: ${foundLeftParens}, currParam: ${currParam}, identifiers: ${identifiers}`);
+            const info: any = manager.getLineInfo(currentLine, position);
 
             const help = new vscode.SignatureHelp();
-            help.activeParameter = currParam;
+            help.activeParameter = info.currParam;
             help.activeSignature = 0;
-            help.signatures = manager.signatures.filter((s:any) => s[0] === identifiers[0]).map((s:any) => s[1]);
+            help.signatures = manager.signatures.filter((s:any) => s[0] === info.identifiers[0].text).map((s:any) => s[1]);
             resolve(help);
         });
     }
@@ -52,9 +29,32 @@ class WrenSignatureHelpProvider implements vscode.SignatureHelpProvider {
 
 class WrenCompletionItemProvider implements vscode.CompletionItemProvider {
     public provideCompletionItems(document: vscode.TextDocument, position: vscode.Position, token: vscode.CancellationToken): Thenable<vscode.CompletionItem[]> {
+        const currentLine = document.lineAt(position.line).text;
+
         return new Promise((resolve, reject) => {
             manager.updateFileIfNotExists(document);
-            resolve(manager.methods);
+            const info = manager.getLineInfo(currentLine, position);
+
+            // some really basic filtering rules here just to knock a bunch of completions out.
+            const results = manager.completions
+                // don't show methods or (static) functions if the line is bare
+                .filter((c: any) => !info.foundDot ? (c.kind === vscode.CompletionItemKind.Method || c.kind === vscode.CompletionItemKind.Function) === false : true)
+                // don't show classes if the line has any dots
+                .filter((c: any) => info.foundDot ? c.kind !== vscode.CompletionItemKind.Class : true)
+                // filter out static functions or class methods if the identifier is a class (first letter capitalized)
+                .filter((c: any): boolean => {
+                    if (c.kind === vscode.CompletionItemKind.Method || c.kind === vscode.CompletionItemKind.Function) {
+                        if (info.identifiers.length === 0) {
+                            return true;
+                        }
+                        
+                        return info.identifiers[0].isClassName ? c.kind !== vscode.CompletionItemKind.Method : c.kind !== vscode.CompletionItemKind.Function;
+                    } else {
+                        return true;
+                    }
+                });
+
+            resolve(results);
         });
     }
 }
