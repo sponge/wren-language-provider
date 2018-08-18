@@ -2,7 +2,7 @@
     "name": "wren-language-provider",
     "displayName": "Wren Language Provider",
     "description": "",
-    "version": "0.0.2",
+    "version": "0.0.3",
     "publisher": "sponge",
     "engines": {
         "vscode": "^1.26.0"
@@ -15,7 +15,6 @@
         "url": "https://github.com/sponge/wren-language-provider"
     },
     "homepage": "https://github.com/sponge/wren-language-provider",
-
     "languages": [
         {
             "id": "wren"
@@ -39,7 +38,7 @@
     },
     "main": "./out/extension",
     "contributes": {
-        "configuration":[
+        "configuration": [
             {
                 "type": "object",
                 "title": "Wren Configuration",
