@@ -130,13 +130,11 @@ class WrenManager {
               }
 
               for (let s of m.statements) {
-                if (s.body) {
-                  visitBody(s.body);
-                }
-
-                // this might not ever be hit? might need to loop through args in callto find them
-                if (s.blockArgument) {
-                  visitBody(s.blockArgument);
+                // look for more potential statements
+                for (let prop of ['body', 'blockArgument', 'thenBranch', 'elseBranch']) {
+                  if (s[prop]) {
+                    visitBody(s[prop]);
+                  }
                 }
 
                 // if it's a "var a = 1" grab the name
@@ -170,10 +168,6 @@ class WrenManager {
             try {
               if (m.body) {
                 visitBody(m.body);
-              }
-
-              if (m.blockArgument) {
-                visitBody(m.blockArgument);
               }
             } catch (err) {
               console.error(err);
