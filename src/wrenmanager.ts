@@ -78,10 +78,13 @@ class WrenManager {
             const label = `${prefix}${c.name.text}.${m.name.text}(${params.join(', ')})`; // Class.funcName(param1, param2, param3)
 
             // use the relative path if possible to save space in the thumbnail
-            const relPath = vscode.workspace.asRelativePath(m.name.source.path);
+            let documentation = vscode.workspace.asRelativePath(m.name.source.path);
+            if (m.name.source.path !== 'core') {
+              documentation += ` (line ${m.name.lineStart})`;
+            }
 
             // setup the signature object 
-            const sig = new vscode.SignatureInformation(label, relPath);
+            const sig = new vscode.SignatureInformation(label, documentation);
             sig.parameters = params.map((p: any) => new vscode.ParameterInformation(p));
 
             // we'll use the function name to filter this.signatures when requested
