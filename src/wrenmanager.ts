@@ -10,6 +10,7 @@ import * as fs from 'fs';
 
 class WrenManager {
   trees: Map<string, Module | null> = new Map();
+  variables: Map<string, vscode.CompletionItem[]> = new Map();
   paths: Array<string> = [];
   pending: Set<string> = new Set();
 
@@ -29,11 +30,19 @@ class WrenManager {
 
     this.completions = [];
     this.signatures = [];
+    this.variables = new Map();
 
     const methodSet: Set<string> = new Set();
     const classSet: Set<string> = new Set();
 
-    for (let module of this.trees.values()) {
+    for (let e of this.trees.entries()) {
+      const path: string = e[0];
+      const module: any = e[1];
+
+      const classVars: vscode.CompletionItem[] = [];
+      this.variables.set(path, classVars);
+      const uniqVars: Set<string> = new Set();
+
       module.statements.filter(o => o.type === 'ClassStmt')
         .forEach((c: any) => {
           if (!classSet.has(c.name.text)) {
@@ -59,6 +68,58 @@ class WrenManager {
             if (!methodSet.has(m.name.text)) {
               this.completions.push(new vscode.CompletionItem(m.name.text, m.staticKeyword ? vscode.CompletionItemKind.Function : vscode.CompletionItemKind.Method));
               methodSet.add(m.name.text); // FIXME: probably don't want this once we actually resolve classes right? we may have different functions that vary in foreign/static properties
+            }
+
+            // grab any variables out
+            // TODO: this seems to be incomplete. timer.wren, it only grabs var f, but not the var t inside the block arg
+            // probably missing other things
+            const visitBody = (m: any) => {
+              if (!m.statements) {
+                return;
+              }
+
+              for (let s of m.statements) {
+                if (s === undefined) {
+                  console.log('???');
+                }
+                if (s.body) {
+                  visitBody(s.body);
+                }
+
+                if (s.blockArgument) {
+                  visitBody(s.blockArgument);
+                }
+
+                if (s.type === 'VarStmt') {
+                  if (uniqVars.has(s.name.text)) {
+                    continue;
+                  }
+                  uniqVars.add(s.name.text);
+                  classVars.push(new vscode.CompletionItem(s.name.text, vscode.CompletionItemKind.Variable));
+                  continue;
+                }
+
+                if (s.type === 'AssignmentExpr' && s.target.name && (s.target.name.type === 'field' || s.target.name.type === 'staticField') ) {
+                  if (uniqVars.has(s.target.name.text)) {
+                    continue;
+                  }
+                  uniqVars.add(s.target.name.text);
+                  
+                  classVars.push(new vscode.CompletionItem(s.target.name.text, vscode.CompletionItemKind.Field));
+                  continue;
+                }
+              }
+            }
+            try {
+              if (m.body) {
+                visitBody(m.body);
+              }
+
+              if (m.blockArgument) {
+                visitBody(m.blockArgument);
+              }
+            } catch (err) {
+              console.error(err);
             }
 
           }

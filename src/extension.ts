@@ -36,7 +36,7 @@ class WrenCompletionItemProvider implements vscode.CompletionItemProvider {
             const info = manager.getLineInfo(currentLine, position);
 
             // some really basic filtering rules here just to knock a bunch of completions out.
-            const results = manager.completions
+            let results: vscode.CompletionItem[] = manager.completions
                 // don't show methods or (static) functions if the line is bare
                 .filter((c: any) => !info.foundDot ? (c.kind === vscode.CompletionItemKind.Method || c.kind === vscode.CompletionItemKind.Function) === false : true)
                 // don't show classes if the line has any dots
@@ -53,6 +53,12 @@ class WrenCompletionItemProvider implements vscode.CompletionItemProvider {
                         return true;
                     }
                 });
+
+            if (manager.variables.has(document.fileName)) {
+                const variables = manager.variables.get(document.fileName)!
+                    .filter((v: any) => info.foundDot ? v.kind !== vscode.CompletionItemKind.Field : true); 
+                results = results.concat(variables);
+            }
 
             resolve(results);
         });
