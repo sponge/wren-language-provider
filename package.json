@@ -2,7 +2,7 @@
     "name": "wren-language-provider",
     "displayName": "Wren Language Provider",
     "description": "",
-    "version": "0.0.3",
+    "version": "0.0.4",
     "publisher": "sponge",
     "engines": {
         "vscode": "^1.26.0"
