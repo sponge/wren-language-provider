@@ -16,6 +16,7 @@ class WrenManager {
   pending: Set<string> = new Set(); // filenames that have not yet resolved
 
   completions: Array<vscode.CompletionItem> = []; // list of all completions globally. TODO: split up per file?
+  staticCompletions: Map<string, Array<vscode.CompletionItem>> = new Map(); // static method completions so we can include only the proper ones
   signatures: [string, vscode.SignatureInformation][] = []; // [function name, [signatures]] globally, non unique function names
 
   constructor() {
@@ -34,10 +35,12 @@ class WrenManager {
     console.info("Regenerating completion items");
 
     this.completions = [];
+    this.staticCompletions = new Map();
     this.signatures = [];
     this.variables = new Map();
 
     const methodSet: Set<string> = new Set(); // seen method names to prevent dupe completions
+    const staticMethodSet: Set<string> = new Set(); // seen static method names to prevent dupe completion
     const classSet: Set<string> = new Set(); // seen class names to prevent dupe completions
 
     // for each ast, go through and grab everything we want to complete
@@ -79,9 +82,19 @@ class WrenManager {
             this.signatures.push([m.name.text, sig]);
 
             // setup the autocomplete for the function itself, icon depending on static or not
+            if (m.staticKeyword) {
+              if (!this.staticCompletions.has(c.name.text)) {
+                this.staticCompletions.set(c.name.text, []);
+              }
+              if (!staticMethodSet.has(m.name.text)) {
+                this.staticCompletions.get(c.name.text)!.push(new vscode.CompletionItem(m.name.text, vscode.CompletionItemKind.Function));
+                staticMethodSet.add(m.name.text);
+              }
+            } else {
             if (!methodSet.has(m.name.text)) {
-              this.completions.push(new vscode.CompletionItem(m.name.text, m.staticKeyword ? vscode.CompletionItemKind.Function : vscode.CompletionItemKind.Method));
+                this.completions.push(new vscode.CompletionItem(m.name.text, vscode.CompletionItemKind.Method));
               methodSet.add(m.name.text); // FIXME: probably don't want this once we actually resolve classes right? we may have different functions that vary in foreign/static properties
+            }
             }
 
             // grab any variables out of the body recursively

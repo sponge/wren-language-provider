@@ -44,25 +44,33 @@ class WrenCompletionItemProvider implements vscode.CompletionItemProvider {
                 .filter((c: any) => !info.foundDot ? (c.kind === vscode.CompletionItemKind.Method || c.kind === vscode.CompletionItemKind.Function) === false : true)
                 // don't show classes if the line has any dots
                 .filter((c: any) => info.foundDot ? c.kind !== vscode.CompletionItemKind.Class : true)
-                // filter out static functions or class methods if the identifier is a class (first letter capitalized)
+                // filter instance methods if the identifier is a class (first letter capitalized)
                 .filter((c: any): boolean => {
-                    if (c.kind === vscode.CompletionItemKind.Method || c.kind === vscode.CompletionItemKind.Function) {
+                    if (c.kind === vscode.CompletionItemKind.Method) {
                         if (info.identifiers.length === 0) {
                             return true;
                         }
                         
-                        return info.identifiers[0].isClassName ? c.kind !== vscode.CompletionItemKind.Method : c.kind !== vscode.CompletionItemKind.Function;
+                        return info.identifiers[0].isClassName ? false : true;
                     } else {
                         return true;
                     }
                 });
 
-            // if we have variables for this file (we usually will) append them
-            if (manager.variables.has(document.fileName)) {
-                const variables = manager.variables.get(document.fileName)!
-                    // if there's been at least 1 dot, _field and __staticfields will never be valid
-                    .filter((v: any) => info.foundDot ? v.kind !== vscode.CompletionItemKind.Field : true); 
-                results = results.concat(variables);
+            // add static members if it is a class reference
+            if (info.identifiers.length && info.identifiers[0].isClassName) {
+                if (manager.staticCompletions.has(info.identifiers[0].text)) {
+                    const methods = manager.staticCompletions.get(info.identifiers[0].text)!;
+                    results = results.concat(methods);
+                }
+            } else {
+                // if we have variables for this file (we usually will) append them
+                if (manager.variables.has(document.fileName)) {
+                    const variables = manager.variables.get(document.fileName)!
+                        // if there's been at least 1 dot, _field and __staticfields will never be valid
+                        .filter((v: any) => info.foundDot ? v.kind !== vscode.CompletionItemKind.Field : true); 
+                    results = results.concat(variables);
+                }
             }
 
             resolve(results);
