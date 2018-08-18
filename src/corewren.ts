@@ -24,10 +24,10 @@ class Fiber {
 }
 
 class Fn {
-  construct new(function)
+  construct new(function) {}
 
   arity {}
-  call(args)
+  call(args) {}
 }
 
 class List is Sequence {
@@ -52,7 +52,7 @@ class Map is Sequence {
 }
 
 class Num {
-  static fromString(value)
+  static fromString(value) {}
   static pi {}
   static largest {}
   static smallest {}
@@ -78,8 +78,6 @@ class Num {
 
 class Object {
   static same(obj1, obj2) {}
-  is(class) {}
-  type {}
 }
 
 class Sequence {
