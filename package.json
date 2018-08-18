@@ -10,6 +10,12 @@
     "categories": [
         "Other"
     ],
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/sponge/wren-language-provider"
+    },
+    "homepage": "https://github.com/sponge/wren-language-provider",
+
     "languages": [
         {
             "id": "wren"
