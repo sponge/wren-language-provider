@@ -21,8 +21,18 @@ class WrenSignatureHelpProvider implements vscode.SignatureHelpProvider {
             const help = new vscode.SignatureHelp();
             help.activeParameter = info.currParam;
             help.activeSignature = 0;
-            // filter out any functions that don't have the same name as whatever's directly to the left of the (
-            help.signatures = manager.signatures.filter((s:any) => s[0] === info.identifiers[0].text).map((s:any) => s[1]);
+
+            // if it looks like a static method call, only show static signatures
+            if (info.identifiers.length === 2 && info.identifiers[1].isClassName) {
+                if (manager.staticSignatures.has(info.identifiers[1].text)) {
+                    help.signatures = manager.staticSignatures.get(info.identifiers[1].text)!
+                        .filter((s: any) => s[0] === info.identifiers[0].text)
+                        .map((s: any) => s[1]);
+                }
+            } else {
+                // filter out any functions that don't have the same name as whatever's directly to the left of the (
+                help.signatures = manager.signatures.filter((s: any) => s[0] === info.identifiers[0].text).map((s: any) => s[1]);
+            }
             resolve(help);
         });
     }
@@ -50,7 +60,7 @@ class WrenCompletionItemProvider implements vscode.CompletionItemProvider {
                         if (info.identifiers.length === 0) {
                             return true;
                         }
-                        
+
                         return info.identifiers[0].isClassName ? false : true;
                     } else {
                         return true;
@@ -68,7 +78,7 @@ class WrenCompletionItemProvider implements vscode.CompletionItemProvider {
                 if (manager.variables.has(document.fileName)) {
                     const variables = manager.variables.get(document.fileName)!
                         // if there's been at least 1 dot, _field and __staticfields will never be valid
-                        .filter((v: any) => info.foundDot ? v.kind !== vscode.CompletionItemKind.Field : true); 
+                        .filter((v: any) => info.foundDot ? v.kind !== vscode.CompletionItemKind.Field : true);
                     results = results.concat(variables);
                 }
             }

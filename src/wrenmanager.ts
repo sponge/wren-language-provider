@@ -18,6 +18,7 @@ class WrenManager {
   completions: Array<vscode.CompletionItem> = []; // list of all completions globally. TODO: split up per file?
   staticCompletions: Map<string, Array<vscode.CompletionItem>> = new Map(); // static method completions so we can include only the proper ones
   signatures: [string, vscode.SignatureInformation][] = []; // [function name, [signatures]] globally, non unique function names
+  staticSignatures: Map<string, [string, vscode.SignatureInformation][]> = new Map(); // class -> [function name, [signatures]] globally, non unique function names
 
   constructor() {
     // grab the string from corewren.ts to get all the core classes
@@ -37,10 +38,10 @@ class WrenManager {
     this.completions = [];
     this.staticCompletions = new Map();
     this.signatures = [];
+    this.staticSignatures = new Map();
     this.variables = new Map();
 
     const methodSet: Set<string> = new Set(); // seen method names to prevent dupe completions
-    const staticMethodSet: Set<string> = new Set(); // seen static method names to prevent dupe completion
     const classSet: Set<string> = new Set(); // seen class names to prevent dupe completions
 
     // for each ast, go through and grab everything we want to complete
@@ -53,8 +54,10 @@ class WrenManager {
       const uniqVars: Set<string> = new Set(); // per-file, prevent duplicate variable names
 
       // for each class in the file, go through and grab everything
-      module.statements.filter((o:any) => o.type === 'ClassStmt')
+      module.statements.filter((o: any) => o.type === 'ClassStmt')
         .forEach((c: any) => {
+          const staticMethodSet: Set<string> = new Set(); // seen static method names to prevent dupe completion
+
           // if this is a new class, setup the completion for it
           if (!classSet.has(c.name.text)) {
             this.completions.push(new vscode.CompletionItem(c.name.text, vscode.CompletionItemKind.Class));
@@ -78,11 +81,20 @@ class WrenManager {
             // setup the signature object 
             const sig = new vscode.SignatureInformation(label, relPath);
             sig.parameters = params.map((p: any) => new vscode.ParameterInformation(p));
+
             // we'll use the function name to filter this.signatures when requested
-            this.signatures.push([m.name.text, sig]);
+            if (m.staticKeyword || m.constructKeyword) {
+              if (!this.staticSignatures.has(c.name.text)) {
+                this.staticSignatures.set(c.name.text, []);
+              }
+
+              this.staticSignatures.get(c.name.text)!.push([m.name.text, sig]);
+            } else {
+              this.signatures.push([m.name.text, sig]);
+            }
 
             // setup the autocomplete for the function itself, icon depending on static or not
-            if (m.staticKeyword) {
+            if (m.staticKeyword || m.constructKeyword) {
               if (!this.staticCompletions.has(c.name.text)) {
                 this.staticCompletions.set(c.name.text, []);
               }
@@ -91,10 +103,10 @@ class WrenManager {
                 staticMethodSet.add(m.name.text);
               }
             } else {
-            if (!methodSet.has(m.name.text)) {
+              if (!methodSet.has(m.name.text)) {
                 this.completions.push(new vscode.CompletionItem(m.name.text, vscode.CompletionItemKind.Method));
-              methodSet.add(m.name.text); // FIXME: probably don't want this once we actually resolve classes right? we may have different functions that vary in foreign/static properties
-            }
+                methodSet.add(m.name.text); // FIXME: probably don't want this once we actually resolve classes right? we may have different functions that vary in foreign/static properties
+              }
             }
 
             // grab any variables out of the body recursively
@@ -127,12 +139,12 @@ class WrenManager {
                 }
 
                 // there are a few types of assignments, some don't have names
-                if (s.type === 'AssignmentExpr' && s.target.name && (s.target.name.type === 'field' || s.target.name.type === 'staticField') ) {
+                if (s.type === 'AssignmentExpr' && s.target.name && (s.target.name.type === 'field' || s.target.name.type === 'staticField')) {
                   if (uniqVars.has(s.target.name.text)) {
                     continue;
                   }
                   uniqVars.add(s.target.name.text);
-                  
+
                   classVars.push(new vscode.CompletionItem(s.target.name.text, vscode.CompletionItemKind.Field));
                   continue;
                 }
@@ -193,7 +205,7 @@ class WrenManager {
           alreadyParsed = true; // track this separately since it's expected
           break;
         }
-  
+
         // TODO: is the synchronous api bad here? it's probably quick enough.
         if (fs.existsSync(joinedPath)) {
           fpath = path.join(testPath, file);
@@ -283,13 +295,13 @@ class WrenManager {
       tokens.push(token);
       token = lexer.readToken();
     }
-    
+
     return tokens;
   }
 
   // return an object of whatever we need in the extension to try and filter results
   // and also to provide the argument completion
-  getLineInfo(source: string, position:vscode.Position): any {
+  getLineInfo(source: string, position: vscode.Position): any {
     const tokens = this.lexString(source).reverse();
 
     // if we find a left parens, we're done parsing arguments
@@ -301,13 +313,13 @@ class WrenManager {
     let foundDot = true;
     // this is kinda dumb but it's useful for the caller to know if there's been any dot
     // so we can know if we should show class names, etc
-    let foundAtLeastOneDot = false; 
+    let foundAtLeastOneDot = false;
     const identifiers: object[] = [];
 
     for (let token of tokens) {
       // we don't care about anything ahead of us yet
       if (token.columnStart > position.character) {
-          continue;
+        continue;
       }
 
       if (token.type === Token.leftParen) {
@@ -337,7 +349,7 @@ class WrenManager {
       //console.log(token);
     }
     console.log(`foundLeftParens: ${foundLeftParens}, currParam: ${currParam}, foundDot: ${foundDot}, identifiers: ${JSON.stringify(identifiers)}`);
-    return {foundLeftParens, currParam, foundDot: foundAtLeastOneDot, identifiers};
+    return { foundLeftParens, currParam, foundDot: foundAtLeastOneDot, identifiers };
   }
 }
 
