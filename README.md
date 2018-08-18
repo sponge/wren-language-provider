@@ -10,6 +10,13 @@ This is a super basic VS Code extension that provides some autocompletion and fu
 - Provides function signature completion based on function name in current file and all imports.
 - Probably doesn't do all that great of a job.
 
+## Screenshots
+
+![Autocompleting members](images/1.png)
+![Autocompleting members](images/2.png)
+![Function signature completion](images/3.png)
+![Function signature completion](images/4.png)
+
 ## Requirements
 
 This extension doesn't provide any syntax formatting, so grab one of the other Wren extensions available on the Extension Marketplace.
