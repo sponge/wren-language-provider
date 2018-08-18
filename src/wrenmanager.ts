@@ -60,20 +60,22 @@ class WrenManager {
 
           // if this is a new class, setup the completion for it
           if (!classSet.has(c.name.text)) {
-            this.completions.push(new vscode.CompletionItem(c.name.text, vscode.CompletionItemKind.Class));
+            const item = new vscode.CompletionItem(c.name.text, vscode.CompletionItemKind.Class);
+            item.detail = vscode.workspace.asRelativePath(c.name.source.path);
+            this.completions.push(item);
             classSet.add(c.name.text);
           }
 
           // for every method, build up the method completion and variables inside
           for (let m of c.methods) {
-            let label = '';
-            if (m.constructKeyword) { label += 'construct '; }
-            if (m.foreignKeyword) { label += 'foreign '; }
-            if (m.staticKeyword) { label += 'static '; }
+            let prefix = '';
+            if (m.constructKeyword) { prefix += 'construct '; }
+            if (m.foreignKeyword) { prefix += 'foreign '; }
+            if (m.staticKeyword) { prefix += 'static '; }
 
             // get the list of param labels
             const params = m.parameters ? m.parameters.map((t: any) => t.text) : [];
-            label += `${c.name.text}.${m.name.text}(${params.join(', ')})`; // Class.funcName(param1, param2, param3)
+            const label = `${prefix}${c.name.text}.${m.name.text}(${params.join(', ')})`; // Class.funcName(param1, param2, param3)
 
             // use the relative path if possible to save space in the thumbnail
             const relPath = vscode.workspace.asRelativePath(m.name.source.path);
@@ -99,12 +101,17 @@ class WrenManager {
                 this.staticCompletions.set(c.name.text, []);
               }
               if (!staticMethodSet.has(m.name.text)) {
-                this.staticCompletions.get(c.name.text)!.push(new vscode.CompletionItem(m.name.text, vscode.CompletionItemKind.Function));
+                const item = new vscode.CompletionItem(m.name.text, vscode.CompletionItemKind.Function);
+                item.detail = `${prefix}${c.name.text}.${m.name.text}`;
+                this.staticCompletions.get(c.name.text)!.push(item);
                 staticMethodSet.add(m.name.text);
               }
             } else {
+              // this is a instance method
               if (!methodSet.has(m.name.text)) {
-                this.completions.push(new vscode.CompletionItem(m.name.text, vscode.CompletionItemKind.Method));
+                const item = new vscode.CompletionItem(m.name.text, vscode.CompletionItemKind.Method);
+                item.detail = `${prefix}${c.name.text}.${m.name.text}`;
+                this.completions.push(item);
                 methodSet.add(m.name.text); // FIXME: probably don't want this once we actually resolve classes right? we may have different functions that vary in foreign/static properties
               }
             }
@@ -112,6 +119,7 @@ class WrenManager {
             // grab any variables out of the body recursively
             // TODO: this seems to be incomplete. timer.wren, it only grabs var f, but not the var t inside the block arg
             // probably missing other things
+            const className = c.name.text;
             const visitBody = (m: any) => {
               // if m.statements is undefined, the iterator will exception out
               if (!m.statements) {
@@ -134,7 +142,9 @@ class WrenManager {
                     continue;
                   }
                   uniqVars.add(s.name.text);
-                  classVars.push(new vscode.CompletionItem(s.name.text, vscode.CompletionItemKind.Variable));
+                  const item = new vscode.CompletionItem(s.name.text, vscode.CompletionItemKind.Variable);
+                  item.detail = 'class ' + className;
+                  classVars.push(item);
                   continue;
                 }
 
@@ -145,7 +155,9 @@ class WrenManager {
                   }
                   uniqVars.add(s.target.name.text);
 
-                  classVars.push(new vscode.CompletionItem(s.target.name.text, vscode.CompletionItemKind.Field));
+                  const item = new vscode.CompletionItem(s.target.name.text, vscode.CompletionItemKind.Field);
+                  item.detail = 'class ' + className;
+                  classVars.push(item);
                   continue;
                 }
               }

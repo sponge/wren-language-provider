@@ -50,8 +50,6 @@ class WrenCompletionItemProvider implements vscode.CompletionItemProvider {
 
       // some really basic filtering rules here just to knock a bunch of useless out.
       let results: vscode.CompletionItem[] = manager.completions
-        // don't show methods or (static) functions if the line is bare
-        .filter((c: any) => !info.foundDot ? (c.kind === vscode.CompletionItemKind.Method || c.kind === vscode.CompletionItemKind.Function) === false : true)
         // don't show classes if the line has any dots
         .filter((c: any) => info.foundDot ? c.kind !== vscode.CompletionItemKind.Class : true)
         // filter instance methods if the identifier is a class (first letter capitalized)
