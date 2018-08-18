@@ -7,6 +7,7 @@ import Token from './wrenalyzer-ts/token';
 import SourceFile from './wrenalyzer-ts/sourcefile';
 import * as path from 'path';
 import * as fs from 'fs';
+import { coreModules } from './corewren';
 
 class WrenManager {
   trees: Map<string, Module | null> = new Map(); // the full ast trees for each file
@@ -18,7 +19,9 @@ class WrenManager {
   signatures: [string, vscode.SignatureInformation][] = []; // [function name, [signatures]] globally, non unique function names
 
   constructor() {
-
+    // grab the string from corewren.ts to get all the core classes
+    const sourceFile = new SourceFile("core", coreModules);
+    this.parseFile(sourceFile);
   }
 
   // add a relative path, useful for global scripts that might not be in the current dir
@@ -47,7 +50,7 @@ class WrenManager {
       const uniqVars: Set<string> = new Set(); // per-file, prevent duplicate variable names
 
       // for each class in the file, go through and grab everything
-      module.statements.filter(o => o.type === 'ClassStmt')
+      module.statements.filter((o:any) => o.type === 'ClassStmt')
         .forEach((c: any) => {
           // if this is a new class, setup the completion for it
           if (!classSet.has(c.name.text)) {
@@ -121,7 +124,7 @@ class WrenManager {
                   continue;
                 }
               }
-            }
+            };
 
             // exception handler since this one has been tricky
             try {
